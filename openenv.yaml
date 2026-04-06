@@ -1,0 +1,49 @@
+name: customer-support-triage
+version: "1.0.0"
+description: >
+  A real-world OpenEnv environment where an AI agent triages customer support tickets.
+  The agent must classify tickets by category and priority, decide whether to escalate
+  to a human agent, write a draft response, and optionally tag each ticket.
+  Three tasks of increasing difficulty model real support operations.
+
+author: Arnav Deepak Tiwari
+tags:
+  - openenv
+  - customer-support
+  - triage
+  - nlp
+  - real-world
+
+tasks:
+  - name: easy
+    description: Clear-cut tickets with unambiguous category and priority signals.
+    max_steps: 3
+    reward_range: [0.0, 1.0]
+
+  - name: medium
+    description: >
+      Moderate ambiguity; repeat-contact customers, cancellation requests, data loss.
+      Correct escalation judgment is required.
+    max_steps: 3
+    reward_range: [0.0, 1.0]
+
+  - name: hard
+    description: >
+      Complex multi-issue tickets: GDPR/legal threats, account fraud, enterprise SLA breaches.
+      High escalation weight; nuanced response quality evaluated.
+    max_steps: 3
+    reward_range: [0.0, 1.0]
+
+api:
+  reset: POST /reset
+  step:  POST /step
+  state: GET  /state
+  health: GET /health
+
+environment_variables:
+  SUPPORT_TASK:
+    description: Which task to run (easy | medium | hard)
+    default: easy
+  PORT:
+    description: Server port
+    default: "7860"
