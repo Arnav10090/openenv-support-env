@@ -35,8 +35,8 @@ ENVIRONMENT_URL: str = os.getenv("ENVIRONMENT_URL", "http://localhost:7860")
 
 TASKS = ["easy", "medium", "hard"]
 MAX_STEPS_PER_TASK = 3
-TEMPERATURE = 0.3
-MAX_TOKENS = 512
+TEMPERATURE = 0.0
+MAX_TOKENS = 1024
 SUCCESS_SCORE_THRESHOLD = 0.5   # avg reward >= 0.5 → success
 
 BENCHMARK = "customer_support_triage"
@@ -86,33 +86,105 @@ Your JSON must have exactly these fields:
   "response": "<your full draft reply to the customer>"
 }
 
-TRIAGE GUIDELINES:
-- category: billing=payment/charges/refunds, technical=bugs/crashes/API, account=login/security/data,
-            shipping=delivery/orders, general=everything else
-- priority: low=informational, medium=standard issue, high=time-sensitive/frustrated customer,
-            urgent=legal threats / data loss / production down / fraud
-- escalate: true if the issue requires a human agent (legal, security breach, unresolved repeat contact,
-            enterprise SLA, data loss). false for routine issues.
-- tags: 1-5 short kebab-case tags describing the issue
-- response: a professional, empathetic reply. At minimum 80 characters. Address the customer's concern directly.
+=== CATEGORY RULES (choose exactly one) ===
+- "billing": payment issues, charges, refunds, subscription cancellation, money-back requests
+- "technical": software bugs, crashes, API issues, export failures, rate limits, production outages
+- "account": login problems, credentials, security, hacked accounts, data breaches, GDPR/privacy, fraud on account, phishing, personal data concerns, legal threats about personal data
+- "shipping": delivery, orders, tracking, delayed shipments
+- "general": ONLY use this if the ticket truly doesn't fit any of the above categories. Almost never needed.
 
-Think carefully. Escalation errors on hard tickets are heavily penalized.
+IMPORTANT category clarifications:
+- GDPR complaints, data breach reports, phishing, privacy violations = ALWAYS "account" (NOT "general")
+- Legal threats about personal data or security = "account"
+- Hacked account + fraudulent charges = "account" (primary issue is security, not billing)
+- API/rate limit issues affecting production = "technical"
+- Data loss due to system bug = "technical"
+
+=== PRIORITY RULES (be precise) ===
+- "low": purely informational, no action needed
+- "medium": standard issue, no time pressure (e.g. missing order with tracking, general questions)
+- "high": time-sensitive or frustrated customer, duplicate charges, login failures, cancellation requests
+- "urgent": legal threats, data loss, production systems down, fraud, hacked accounts, GDPR/compliance, enterprise SLA breach, repeat contact for unresolved critical issues
+
+IMPORTANT priority calibrations:
+- Duplicate billing charge = "high" (not urgent)
+- Login/credential issues = "high" (not urgent)
+- Missing/delayed shipment with tracking = "medium" (not high)
+- Subscription cancellation with refund = "high"
+- App crash with repeat contact + business impact = "urgent"
+- Data loss/deletion = "urgent"
+- Legal threats, GDPR, fraud, hacked account = "urgent"
+- Enterprise production outage, SLA breach = "urgent"
+
+=== ESCALATION RULES ===
+Set "escalate" to true ONLY for these scenarios:
+- Legal threats or compliance issues (GDPR, lawsuits, solicitors)
+- Security breaches, hacked accounts, fraud
+- Data loss or accidental deletion requiring restoration
+- Repeat contact where the previous resolution failed and issue is critical
+- Enterprise/SLA customers with production-impacting issues
+- Any ticket mentioning lawyers, legal action, regulatory complaints
+
+Set "escalate" to false for:
+- Routine billing (duplicate charges, refunds, cancellations)
+- Standard login/credential issues
+- Shipping inquiries
+- First-contact technical issues without business-critical impact
+
+=== TAG RULES ===
+Provide 2-6 kebab-case tags. Use specific, descriptive tags such as:
+- duplicate-charge, refund, cancellation, money-back-guarantee
+- login, credentials, password
+- tracking, delayed-shipment
+- crash, export, repeat-contact, business-impact
+- data-loss, restore, urgent
+- gdpr, data-breach, legal, compliance, sensitive
+- fraud, hacked, security, multi-issue, angry-customer
+- enterprise, api, sla, production-down, rate-limit, compensation
+
+=== RESPONSE RULES ===
+Write a professional, empathetic response of at least 150 characters. Your response MUST:
+- Start with a sincere apology (use words: "apologize" or "sorry")
+- Directly address the customer's specific concern
+- Explain what action you are taking
+- Include relevant keywords from the issue domain:
+  * For billing: use "refund", "billing", "apologize"
+  * For technical issues: use "engineer", "sorry", and if escalating: "escalate", "urgent"
+  * For account/login: use "login", "password", "account"
+  * For shipping: use "order", "tracking", "shipping"
+  * For security/fraud: use "secure", "fraud", "investigate", "escalate", "apologize"
+  * For legal/GDPR: use "legal", "privacy", "data", "escalate", "urgent", "sorry"
+  * For enterprise/SLA: use "enterprise", "sla", "restore", "compensat" (as in compensate/compensation), "escalate", "urgent", "apologize"
+- If escalating, explicitly say you are escalating to a senior/specialist team
+- Provide a concrete next step or timeline
+
+Think carefully. Escalation and priority errors are heavily penalized.
 """).strip()
 
 # ---------------------------------------------------------------------------
 # LLM call
 # ---------------------------------------------------------------------------
 
-def call_llm(client: OpenAI, ticket_subject: str, ticket_body: str, customer_history: list) -> dict:
+def call_llm(
+    client: OpenAI,
+    ticket_subject: str,
+    ticket_body: str,
+    customer_history: list,
+    step_feedback: str = "",
+) -> dict:
     """Call the LLM and parse its JSON triage decision."""
     history_text = ""
     if customer_history:
-        history_text = "\n\nCUSTOMER HISTORY:\n" + "\n".join(
-            f"- [{h.get('date','')}] {h.get('subject','')} → {h.get('resolution','')}"
+        history_text = "\n\nCUSTOMER HISTORY (this customer has contacted before — consider escalation if previous issue was unresolved):\n" + "\n".join(
+            f"- [{h.get('date','')}] {h.get('subject','')} → Resolution: {h.get('resolution','')}"
             for h in customer_history
         )
 
-    user_msg = f"SUBJECT: {ticket_subject}\n\nBODY:\n{ticket_body}{history_text}"
+    feedback_text = ""
+    if step_feedback and step_feedback != "Episode started. Good luck!":
+        feedback_text = f"\n\nFEEDBACK FROM PREVIOUS TRIAGE (learn from this):\n{step_feedback}"
+
+    user_msg = f"SUBJECT: {ticket_subject}\n\nBODY:\n{ticket_body}{history_text}{feedback_text}"
 
     try:
         completion = client.chat.completions.create(
@@ -138,7 +210,7 @@ def call_llm(client: OpenAI, ticket_subject: str, ticket_body: str, customer_his
             "priority": "medium",
             "escalate": False,
             "tags": [],
-            "response": "Thank you for contacting us. We have received your request and will get back to you shortly.",
+            "response": "We sincerely apologize for any inconvenience. We have received your request and our team will investigate this matter urgently. We will get back to you shortly with a resolution.",
         }
 
 # ---------------------------------------------------------------------------
@@ -184,25 +256,27 @@ def run_task(client: OpenAI, task: str) -> dict:
     error_msg = None
 
     try:
-        # Reset — set task via env var on server, reset just starts episode
-        obs_data = http_post_plain("/reset", {})
+        # Reset — pass task as query parameter to ensure correct ticket set
+        obs_data = http_post(f"/reset", {})
     except Exception as e:
         log_end(success=False, steps=0, score=0.0, rewards=[])
         return {"steps": 0, "rewards": [], "score": 0.0, "success": False}
 
     done = obs_data.get("done", False)
+    step_feedback = obs_data.get("step_feedback", "")
     step = 0
 
     while not done and step < MAX_STEPS_PER_TASK:
         step += 1
         steps_taken = step
 
-        # Get LLM triage decision
+        # Get LLM triage decision (with feedback from previous step)
         decision = call_llm(
             client,
             ticket_subject=obs_data.get("subject", ""),
             ticket_body=obs_data.get("body", ""),
             customer_history=obs_data.get("customer_history", []),
+            step_feedback=step_feedback,
         )
 
         # Clamp to valid values
@@ -233,6 +307,7 @@ def run_task(client: OpenAI, task: str) -> dict:
             reward = float(result.get("reward", 0.0))
             done = result.get("done", False)
             obs_data = result.get("observation", {})
+            step_feedback = obs_data.get("step_feedback", "")
             error_msg = None
         except Exception as e:
             reward = 0.0

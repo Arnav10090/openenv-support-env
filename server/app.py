@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+import uvicorn
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -114,6 +115,22 @@ def _obs_to_dict(obs) -> Dict[str, Any]:
 
 # ── Endpoints ──────────────────────────────────────────────────────────────
 
+@app.get("/")
+def root():
+    """Landing page with links to all endpoints."""
+    return {
+        "service": "Customer Support Triage — OpenEnv",
+        "version": "1.0.0",
+        "endpoints": {
+            "GET  /health": "Health check",
+            "POST /reset?task=easy": "Start a new episode (easy|medium|hard)",
+            "POST /step": "Submit a triage action",
+            "GET  /state": "Episode metadata and stats",
+            "GET  /docs": "Interactive API docs (Swagger UI)",
+        },
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "healthy", "task": _current_task, "version": "1.0.0"}
@@ -169,3 +186,16 @@ def state():
         "escalations_needed": s.escalations_needed,
         "metadata": s.metadata,
     }
+
+
+# ── Entry point ────────────────────────────────────────────────────────────
+
+def main():
+    """Run the server with uvicorn."""
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "7860"))
+    uvicorn.run("server.app:app", host=host, port=port, reload=False)
+
+
+if __name__ == "__main__":
+    main()
