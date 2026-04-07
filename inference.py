@@ -35,8 +35,8 @@ ENVIRONMENT_URL: str = os.getenv("ENVIRONMENT_URL", "http://localhost:7860")
 
 TASKS = ["easy", "medium", "hard"]
 MAX_STEPS_PER_TASK = 3
-TEMPERATURE = 0.0
-MAX_TOKENS = 1024
+TEMPERATURE = 0.3
+MAX_TOKENS = 512
 SUCCESS_SCORE_THRESHOLD = 0.5   # avg reward >= 0.5 → success
 
 BENCHMARK = "customer_support_triage"

@@ -1,0 +1,4 @@
+# file: C:\Users\Asus\Downloads\openenv-support-env\openenv-support-env\src\envs\support_env\client.py
+# hypothesis_version: 6.151.9
+
+[0.0, '/', '/health', '/reset', '/state', '/step', 'Content-Type', 'GET', 'POST', 'account', 'application/json', 'available_categories', 'available_priorities', 'billing', 'body', 'category', 'correct_categories', 'correct_priorities', 'customer_history', 'done', 'easy', 'episode_id', 'escalate', 'escalations_made', 'escalations_needed', 'general', 'high', 'info', 'low', 'medium', 'metadata', 'observation', 'priority', 'response', 'reward', 'shipping', 'step_count', 'step_feedback', 'subject', 'tags', 'task_name', 'technical', 'ticket_id', 'tickets_processed', 'total_reward', 'urgent', 'utf-8']

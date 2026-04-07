@@ -1,0 +1,4 @@
+# file: C:\Users\Asus\Downloads\openenv-support-env\openenv-support-env\server\app.py
+# hypothesis_version: 6.151.9
+
+[400, '*', '/', '/health', '/reset', '/state', '/step', '0.0.0.0', '1.0.0', '7860', 'GET  /docs', 'GET  /health', 'GET  /state', 'HOST', 'Health check', 'PORT', 'POST /step', 'Routing tags', 'SUPPORT_TASK', '__main__', 'available_categories', 'available_priorities', 'body', 'correct_categories', 'correct_priorities', 'customer_history', 'done', 'easy', 'easy | medium | hard', 'endpoints', 'episode_id', 'escalations_made', 'escalations_needed', 'general', 'hard', 'healthy', 'info', 'medium', 'metadata', 'observation', 'reward', 'server.app:app', 'service', 'src', 'status', 'step_count', 'step_feedback', 'subject', 'task', 'task_name', 'ticket_id', 'tickets_processed', 'total_reward', 'version']
